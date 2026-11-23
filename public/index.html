@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#100d22">
+  <title>Call Up · בדיקת זמינות סיבים</title>
+  <meta name="description" content="בדקו בחינם אם יש סיבים אופטיים בכתובת שלכם – מול תשתיות בזק ו-IBC.">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="bg" aria-hidden="true">
+    <div class="glow glow--purple"></div>
+    <div class="glow glow--blue"></div>
+    <svg class="arcs" viewBox="0 0 1100 1000" preserveAspectRatio="xMinYMin slice">
+      <g fill="none" stroke-width="1.6">
+        <path class="arc" d="M0 60 C 520 80, 900 420, 1010 1000"/>
+        <path class="arc" d="M0 140 C 450 160, 780 470, 880 1000"/>
+        <path class="arc" d="M0 220 C 380 240, 660 520, 760 1000"/>
+        <path class="arc" d="M0 300 C 320 320, 550 580, 640 1000"/>
+        <path class="arc" d="M0 380 C 260 400, 450 640, 510 1000"/>
+      </g>
+      <g fill="none" stroke-width="3.5" stroke-linecap="round">
+        <path class="pulse pulse--1" d="M0 60 C 520 80, 900 420, 1010 1000" pathLength="1000"/>
+        <path class="pulse pulse--2" d="M0 220 C 380 240, 660 520, 760 1000" pathLength="1000"/>
+        <path class="pulse pulse--3" d="M0 380 C 260 400, 450 640, 510 1000" pathLength="1000"/>
+      </g>
+    </svg>
+  </div>
+
+  <header class="top">
+    <a href="./" class="logo" aria-label="Call Up"><img src="logo.png" alt="Call Up"></a>
+  </header>
+
+  <main class="hero">
+    <section class="intro">
+      <p class="eyebrow">בדיקת זמינות סיבים · חינם, תוך שניות</p>
+      <h1>יש סיבים אופטיים<br><span class="underline">בבית שלכם?</span></h1>
+      <p class="subtitle">הזינו כתובת ונבדוק מול תשתיות בזק ו-IBC אם הסיב כבר מחכה לכם – ואם כן,<br class="br-wide"> Call Up תחבר אתכם לאינטרנט מהיר באמת.</p>
+    </section>
+
+    <!-- Step 1: address -->
+    <form id="check-form" class="bar" autocomplete="off" novalidate>
+      <div class="field field--city combo" data-combo="city">
+        <label for="city-input">יישוב</label>
+        <input id="city-input" type="text" placeholder="התחילו להקליד שם יישוב" role="combobox" aria-expanded="false" aria-controls="city-list" aria-autocomplete="list">
+        <ul id="city-list" class="combo__list" role="listbox" hidden></ul>
+      </div>
+      <div class="field field--street combo" data-combo="street">
+        <label for="street-input">רחוב</label>
+        <input id="street-input" type="text" placeholder="בחרו יישוב קודם" disabled role="combobox" aria-expanded="false" aria-controls="street-list" aria-autocomplete="list">
+        <ul id="street-list" class="combo__list" role="listbox" hidden></ul>
+      </div>
+      <div class="field field--house">
+        <label for="house-input">מספר בית</label>
+        <input id="house-input" type="text" inputmode="numeric" maxlength="10">
+      </div>
+      <div class="field field--apt">
+        <label for="apt-input">דירה <small>(לא חובה)</small></label>
+        <input id="apt-input" type="text" inputmode="numeric" maxlength="10">
+      </div>
+      <button type="submit" class="btn" id="check-btn">
+        <span class="btn__label">בדקו זמינות</span>
+        <span class="spinner" aria-hidden="true"></span>
+      </button>
+    </form>
+    <p class="form-error" id="check-error" role="alert" hidden></p>
+
+    <!-- Step 2: result + lead -->
+    <section class="result" id="result" hidden aria-live="polite">
+      <p class="result__status"><span class="result__pill"><span class="result__dot" aria-hidden="true"></span><strong id="result-badge"></strong></span><span class="result__address" id="result-address"></span></p>
+      <h2 id="result-title"></h2>
+      <p class="result__text" id="result-text"></p>
+
+      <form id="lead-form" class="bar bar--lead" novalidate>
+        <div class="field">
+          <label for="lead-name">שם מלא</label>
+          <input id="lead-name" type="text" autocomplete="name" placeholder="ישראל ישראלי" maxlength="80">
+        </div>
+        <div class="field">
+          <label for="lead-phone">טלפון נייד</label>
+          <input id="lead-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="050-0000000" maxlength="13">
+        </div>
+        <button type="submit" class="btn" id="lead-btn"></button>
+      </form>
+      <p class="form-error" id="lead-error" role="alert" hidden></p>
+
+      <div class="thanks" id="thanks" hidden>
+        <span class="thanks__check" aria-hidden="true"></span>
+        <p><strong>תודה, <span id="thanks-name"></span>.</strong> קיבלנו את הפרטים, ונציג של Call Up יחזור אליכם בהקדם.</p>
+      </div>
+
+      <button type="button" class="again" id="again-btn">בדיקת כתובת אחרת</button>
+    </section>
+  </main>
+
+  <!-- Mobile picker: bottom drawer for city / street -->
+  <div class="sheet" id="sheet" hidden>
+    <div class="sheet__backdrop"></div>
+    <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet__handle" aria-hidden="true"></div>
+      <div class="sheet__head">
+        <h3 id="sheet-title"></h3>
+        <button type="button" class="sheet__close" aria-label="סגירה">✕</button>
+      </div>
+      <input id="sheet-search" class="sheet__search" type="search" autocomplete="off" enterkeyhint="search">
+      <ul id="sheet-list" class="sheet__list" role="listbox"></ul>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
