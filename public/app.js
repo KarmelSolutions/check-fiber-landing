@@ -98,30 +98,39 @@
     }
   }
 
-  // Checks Bezeq and IBC in parallel; fiber if either has it. null = both checks failed.
-  async function checkFiber({ cityId, streetId, houseNumber, apartment }) {
+  // Checks Bezeq and IBC in parallel. Resolves to { fiber, provider }: provider is the one the answer is about.
+  function checkFiber({ cityId, streetId, houseNumber, apartment }) {
     const address = { cityId, streetId, houseNumber };
-    // IBC requires an apartment; a private house has none, so "0" stands for "no apartment".
-    const [bezeq, ibc] = await Promise.all([
-      checkProvider('bezeq', { address }),
-      checkProvider('ibc', { address: { ...address, apartment: apartment || '0' } }),
-    ]);
-    return combineResults(bezeq, ibc);
+    return firstFiber({
+      bezeq: checkProvider('bezeq', { address }),
+      // IBC requires an apartment; a private house has none, so "0" stands for "no apartment".
+      ibc: checkProvider('ibc', { address: { ...address, apartment: apartment || '0' } }),
+    });
   }
 
-  async function checkFiberByCoordinates(coordinates) {
-    const [bezeq, ibc] = await Promise.all([
-      checkProvider('bezeq', { coordinates }),
-      checkProvider('ibc', { coordinates }),
-    ]);
-    return combineResults(bezeq, ibc);
+  function checkFiberByCoordinates(coordinates) {
+    return firstFiber({
+      bezeq: checkProvider('bezeq', { coordinates }),
+      ibc: checkProvider('ibc', { coordinates }),
+    });
   }
 
-  function combineResults(bezeq, ibc) {
-    dbg('check results', { bezeq, ibc });
-    state.providers = { bezeq, ibc };
-    if (bezeq === null && ibc === null) return null;
-    return bezeq === true || ibc === true;
+  // The first provider with fiber decides right away; "no fiber" needs both answers. fiber: null = both checks failed.
+  // checks: { bezeq, ibc } promises of true / false / null that never reject (see checkProvider).
+  function firstFiber(checks) {
+    const results = {};
+    return new Promise((resolve) => {
+      for (const provider of ['bezeq', 'ibc']) {
+        checks[provider].then((has) => {
+          results[provider] = has;
+          dbg('check result', provider, has);
+          if (has === true) return resolve({ fiber: true, provider });
+          if (!('bezeq' in results && 'ibc' in results)) return;
+          const { bezeq, ibc } = results;
+          resolve({ fiber: bezeq === null && ibc === null ? null : false, provider: bezeq === null && ibc !== null ? 'ibc' : 'bezeq' });
+        });
+      }
+    });
   }
 
   // ---------- location ----------
@@ -136,17 +145,58 @@
 
   const MAX_ACCURACY_METERS = 500; // a wider fix (IP-based / "approximate location") cannot identify a building
 
+  const POSITION_REUSE_MS = 5 * 60 * 1000;
+  const POSITION_WAIT_MS = 15000;
+  const POSITION_KEY = 'callup-last-position'; // sessionStorage: survives a reload of this tab only
+
+  function savePosition(coords) {
+    try {
+      sessionStorage.setItem(POSITION_KEY, JSON.stringify({ latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy, at: Date.now() }));
+    } catch {}
+  }
+  function savedPosition() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(POSITION_KEY) || 'null');
+      return saved && Date.now() - saved.at <= POSITION_REUSE_MS ? { coords: saved } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // The OS often answers "position unavailable" for a moment (macOS does it when asked again shortly
+  // after a fix), and getCurrentPosition gives up on that first error. A watch keeps listening, so we
+  // wait for a fix until the deadline, and only then fall back to the last fix this tab got.
   function getPosition() {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) return reject(new Error('הדפדפן לא תומך באיתור מיקום. הזינו כתובת במקום.'));
-      navigator.geolocation.getCurrentPosition(resolve, (err) => {
+      let best = null;
+      const finish = (settle, value) => {
+        navigator.geolocation.clearWatch(watchId);
+        clearTimeout(timer);
+        settle(value);
+      };
+      const giveUp = () => {
+        if (best) return finish(resolve, best); // a fix arrived, just not an accurate one
+        const saved = savedPosition();
+        if (saved) { dbg('geolocation fallback: last fix from this tab'); return finish(resolve, saved); }
+        finish(reject, new Error('לא הצלחנו לאתר את המיקום שלכם. נסו שוב או הזינו כתובת.'));
+      };
+      const timer = setTimeout(giveUp, POSITION_WAIT_MS);
+      const watchId = navigator.geolocation.watchPosition((position) => {
+        if (!best || position.coords.accuracy < best.coords.accuracy) best = position;
+        if (position.coords.accuracy > MAX_ACCURACY_METERS) return; // keep waiting for a better fix
+        savePosition(position.coords);
+        finish(resolve, position);
+      }, (err) => {
         dbg('geolocation error', err.code, err.message);
-        reject(new Error(err.code === 1
-          ? 'אין הרשאה למיקום. אשרו גישה למיקום בדפדפן, או הזינו כתובת.'
-          : 'לא הצלחנו לאתר את המיקום שלכם. נסו שוב או הזינו כתובת.'));
-      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+        if (err.code === 1) finish(reject, new Error('אין הרשאה למיקום. אשרו גישה למיקום בדפדפן, או הזינו כתובת.'));
+        else if (savedPosition()) giveUp(); // no need to keep the user waiting when we have a recent fix
+      }, { enableHighAccuracy: true, maximumAge: 0 });
     });
   }
+
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const ADDRESS_WAIT_MS = 2000; // how long a ready answer waits for its address
 
   // Display only: the check itself runs on the coordinates.
   async function addressText(provider, coordinates) {
@@ -161,9 +211,27 @@
     }
   }
 
-  async function coordinatesToAddress(coordinates) {
-    const [bezeq, ibc] = await Promise.all([addressText('bezeq', coordinates), addressText('ibc', coordinates)]);
-    return { bezeq, ibc };
+  // Looks the address up at both providers. Nothing here blocks the check:
+  // onFirst gets the first address that comes back ('' when neither provider found one), and
+  // forProvider() picks the address to show with the answer.
+  function lookupAddresses(coordinates, onFirst) {
+    const found = {};
+    let reported = false;
+    const lookup = (provider) => addressText(provider, coordinates).then((text) => {
+      found[provider] = text;
+      if (reported || (!text && !('bezeq' in found && 'ibc' in found))) return;
+      reported = true;
+      onFirst(text);
+    });
+    const pending = { bezeq: lookup('bezeq'), ibc: lookup('ibc') };
+    return {
+      // Bezeq and IBC may resolve a point to neighbouring buildings, so prefer the answering provider's
+      // address; when it is slow or missing, use the other one rather than hold the answer back.
+      async forProvider(provider) {
+        await Promise.race([pending[provider], wait(ADDRESS_WAIT_MS)]);
+        return found[provider] || found[provider === 'bezeq' ? 'ibc' : 'bezeq'] || '';
+      },
+    };
   }
 
   // ---------- combobox (dropdown on desktop, bottom drawer on mobile) ----------
@@ -434,7 +502,7 @@
 
     setLoading(checkBtn, true);
     try {
-      const fiber = await checkFiber({ cityId: state.city.cityId, streetId: state.street.streetId, houseNumber: house, apartment: apt });
+      const { fiber } = await checkFiber({ cityId: state.city.cityId, streetId: state.street.streetId, houseNumber: house, apartment: apt });
       if (fiber === null) throw new Error('לא הצלחנו לבדוק את הכתובת כרגע. נסו שוב בעוד רגע.');
       const address = `${state.street.name} ${house}${apt ? ', דירה ' + apt : ''}, ${state.city.name}`;
       showResult(fiber, address);
@@ -450,13 +518,41 @@
   const locateLabel = $('locate-label');
   const LOCATE_LABEL = locateLabel.textContent;
 
-  // Full-screen loading shown while the location check runs.
-  function setLocating(step) {
-    $('locating').hidden = !step;
-    if (!step) return;
-    const checking = step === 'check';
-    $('locating-title').textContent = checking ? 'בודקים זמינות סיבים…' : 'מאתרים את המיקום שלכם…';
-    $('locating-text').textContent = checking ? 'עוד רגע ויש תשובה' : 'אשרו גישה למיקום אם הדפדפן מבקש';
+  // Full-screen loading shown while the location check runs, with a step list of what is happening.
+  const STEP_TEXT = {
+    locate: { pending: 'איתור המיקום', active: 'מאתרים את המיקום שלכם…', done: 'המיקום אותר' },
+    address: { pending: 'זיהוי הכתובת', active: 'מזהים את הכתובת…', done: 'הכתובת שזוהתה:' },
+    check: { pending: 'בדיקת זמינות סיבים', active: 'בודקים זמינות סיבים מול בזק ו-IBC…', done: 'הבדיקה הושלמה', none: 'אין סיבים בכתובת הזו עדיין' },
+  };
+  const RESULT_HOLD_MS = 1100; // let the user read the confirmed address before the result replaces the screen
+
+  // status: 'pending' | 'active' | 'done' | 'none' (check step only: finished, no fiber). detail (the address) is shown under a done step.
+  function setStep(name, status, detail) {
+    const li = $('locating-steps').querySelector(`[data-step="${name}"]`);
+    li.classList.toggle('is-active', status === 'active');
+    li.classList.toggle('is-done', status === 'done');
+    li.classList.toggle('is-none', status === 'none');
+    const label = li.querySelector('.steps__label');
+    label.textContent = STEP_TEXT[name][status];
+    if (detail) {
+      const strong = document.createElement('strong');
+      strong.textContent = detail;
+      label.append(strong);
+    }
+    $('locating-text').textContent = name === 'locate' && status === 'active' ? 'אשרו גישה למיקום אם הדפדפן מבקש' : '';
+  }
+
+  function setLocating(on) {
+    $('locating').hidden = !on;
+    if (!on) return;
+    setStep('address', 'pending');
+    setStep('check', 'pending');
+    setStep('locate', 'active');
+  }
+
+  function setAddressStep(address) {
+    setStep('address', 'done', address);
+    if (!address) $('locating-steps').querySelector('[data-step="address"] .steps__label').textContent = 'לא זוהתה כתובת מדויקת, בודקים לפי המיקום';
   }
 
   locateBtn.addEventListener('click', async () => {
@@ -466,7 +562,8 @@
     locateBtn.disabled = checkBtn.disabled = true;
     locateBtn.classList.add('is-loading');
     locateLabel.textContent = 'מאתרים את המיקום…';
-    setLocating('locate');
+    setLocating(true);
+    let answered = false;
     try {
       const { coords } = await getPosition();
       dbg('position', { accuracy: coords.accuracy });
@@ -474,17 +571,24 @@
       if (!window.proj4) throw new Error('לא הצלחנו לבדוק לפי מיקום כרגע. רעננו את הדף או הזינו כתובת.');
       const coordinates = WGS84toITM(coords.latitude, coords.longitude);
       locateLabel.textContent = 'בודקים…';
-      setLocating('check');
-      const [addresses, fiber] = await Promise.all([coordinatesToAddress(coordinates), checkFiberByCoordinates(coordinates)]);
-      // Bezeq and IBC may resolve a point to neighbouring buildings: show the one the answer is about.
-      const { bezeq, ibc } = state.providers;
-      const fromIbc = (ibc === true && bezeq !== true) || (bezeq === null && ibc !== null);
-      const address = fromIbc ? addresses.ibc || addresses.bezeq : addresses.bezeq || addresses.ibc;
+      setStep('locate', 'done');
+      setStep('address', 'active');
+      const addresses = lookupAddresses(coordinates, (text) => {
+        if (answered) return; // a late address must not touch the screen (or a newer check's screen)
+        setAddressStep(text);
+        setStep('check', 'active');
+      });
+      const { fiber, provider } = await checkFiberByCoordinates(coordinates);
+      const address = await addresses.forProvider(provider);
+      answered = true;
       if (fiber === null) {
         throw new Error(address
           ? `המיקום שאותר: ${address}. לא הצלחנו לבדוק אותו כרגע. נסו שוב או הזינו כתובת.`
           : 'לא מצאנו כתובת במיקום שלכם. הזינו כתובת לבדיקה.');
       }
+      setAddressStep(address); // the address the answer is about, if it differs from the first one shown
+      setStep('check', fiber ? 'done' : 'none');
+      await wait(RESULT_HOLD_MS);
       showResult(fiber, address || 'המיקום הנוכחי שלכם');
     } catch (err) {
       dbg('locate failed', err.message);
@@ -493,7 +597,7 @@
       locateBtn.disabled = checkBtn.disabled = false;
       locateBtn.classList.remove('is-loading');
       locateLabel.textContent = LOCATE_LABEL;
-      setLocating(null);
+      setLocating(false);
     }
   });
 

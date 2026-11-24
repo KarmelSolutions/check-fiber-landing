@@ -131,11 +131,39 @@ h1 {
   0%, 100% { box-shadow: 0 0 0 0 rgba(63, 182, 255, .0), 0 10px 30px rgba(108, 63, 235, .5); }
   50% { box-shadow: 0 0 0 14px rgba(63, 182, 255, .12), 0 10px 40px rgba(108, 63, 235, .8); }
 }
-.locating__title { margin: 0 0 6px; padding: 0 24px; font-size: clamp(22px, 3.4vh, 30px); font-weight: 800; }
-.locating__text { margin: 0; padding: 0 24px; color: var(--ink-soft); font-size: 15.5px; }
+/* Title, steps and hint share one centred column, so they start on the same edge. */
+.locating__title, .steps, .locating__text { width: min(404px, 100%); padding: 0 24px; text-align: start; }
+.locating__title { margin: 0 0 18px; font-size: clamp(20px, min(3.4vh, 7vw), 30px); font-weight: 800; white-space: nowrap; }
+.locating__text { margin: 16px 0 0; min-height: 1.5em; color: var(--ink-soft); font-size: 14.5px; }
+/* What the location check is doing right now: pending -> active (spinner) -> done (check). */
+.steps { list-style: none; margin: 0; display: grid; gap: 12px; }
+.steps__item { display: flex; align-items: flex-start; gap: 12px; font-size: 16.5px; line-height: 1.4; color: var(--ink-soft); opacity: .45; transition: opacity .25s, color .25s; }
+.steps__item.is-active, .steps__item.is-done, .steps__item.is-none { opacity: 1; color: #fff; }
+.steps__item.is-active { font-weight: 600; }
+.steps__label strong { display: block; font-weight: 800; color: var(--cyan); overflow-wrap: anywhere; }
+.steps__mark {
+  flex: none; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .3); display: grid; place-items: center;
+}
+.steps__item.is-active .steps__mark { border-color: rgba(255, 255, 255, .3); border-top-color: var(--cyan); animation: spin .8s linear infinite; }
+.steps__item.is-done .steps__mark { border-color: var(--ok); background: var(--ok); animation: step-done .3s ease-out; }
+.steps__item.is-done .steps__mark::after {
+  content: ''; width: 5px; height: 10px; margin-top: -2px;
+  border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg);
+}
+/* Finished with a negative answer: an X, in the same red as the no-fiber result. */
+.steps__item.is-none { font-weight: 600; }
+.steps__item.is-none .steps__mark { position: relative; border-color: #dc2f3c; background: #dc2f3c; animation: step-done .3s ease-out; }
+.steps__item.is-none .steps__mark::before, .steps__item.is-none .steps__mark::after {
+  content: ''; position: absolute; top: 50%; left: 50%; width: 11px; height: 2.5px; border-radius: 2px;
+  background: #fff; transform: translate(-50%, -50%) rotate(45deg);
+}
+.steps__item.is-none .steps__mark::after { transform: translate(-50%, -50%) rotate(-45deg); }
+@keyframes step-done { from { transform: scale(.5); } to { transform: none; } }
 @media (max-width: 640px) { .fibers__home { width: 60px; height: 60px; margin: -30px 0 0 -30px; } .fibers__home svg { width: 28px; height: 28px; } }
 @media (prefers-reduced-motion: reduce) {
-  .locating, .fibers__home { animation: none; }
+  .locating, .fibers__home, .steps__item.is-done .steps__mark, .steps__item.is-none .steps__mark { animation: none; }
+  .steps__item.is-active .steps__mark { animation-duration: 2.4s; }
   .fibers__light path { animation-duration: 5s; }
 }
 
