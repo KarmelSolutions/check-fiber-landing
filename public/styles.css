@@ -83,12 +83,18 @@ h1 {
 .has-result .intro { display: none; }
 
 /* ---------- check by location ----------
-   A real button directly under the address form. */
-.locate { flex: none; display: flex; align-items: center; gap: 14px; margin-top: clamp(12px, 2vh, 18px); }
-.locate__or { color: var(--ink-soft); font-size: 15px; }
+   A real button beside the address card (outside it), level with the submit button. */
+.check-row { display: flex; align-items: stretch; gap: 12px; }
+.check-row > form { flex: 1; min-width: 0; }
+.has-result .check-row { display: none; }
+/* block padding = the card's padding + border, so the button matches the submit button's height */
+.locate { flex: none; display: flex; gap: 12px; padding-block: 9px; }
+/* "or" on a vertical line between the two buttons */
+.locate__or { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink-soft); font-size: 13px; line-height: 1; }
+.locate__or::before, .locate__or::after { content: ''; flex: 1; width: 1px; background: rgba(255, 255, 255, .22); }
 .locate__btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  min-height: clamp(48px, 6.4vh, 56px); padding: 0 26px;
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: clamp(52px, 7vh, 64px); padding: 0 22px;
   border: 1.5px solid var(--cyan); border-radius: 12px; background: rgba(63, 182, 255, .16);
   color: #fff; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer;
   box-shadow: 0 12px 30px rgba(4, 2, 20, .35); transition: background .15s, transform .15s;
@@ -183,7 +189,7 @@ h1 {
 }
 .field { position: relative; padding: 10px 18px; display: flex; flex-direction: column; justify-content: center; }
 .field + .field::before { content: ''; position: absolute; right: 0; top: 22%; bottom: 22%; width: 1px; background: var(--glass-line); }
-.field label { font-size: 12.5px; font-weight: 700; margin-bottom: 4px; color: var(--ink-soft); }
+.field label { font-size: 12.5px; font-weight: 700; margin-bottom: 4px; color: var(--ink-soft); white-space: nowrap; }
 .field label small { font-weight: 400; color: rgba(255, 255, 255, .5); }
 .field input {
   border: 0; outline: 0; background: transparent; padding: 2px 0;
@@ -304,6 +310,11 @@ h1 {
   .field--city { grid-column: 1 / -1; }
   .field--street { grid-column: 1 / -1; }
   .bar .btn { grid-column: 1 / -1; margin-top: 6px; }
+  /* the card stacks, so the location button goes under it with a horizontal "or" line */
+  .check-row { flex-direction: column; gap: 10px; }
+  .locate { flex-direction: column; gap: 8px; padding-block: 0; }
+  .locate__or { flex-direction: row; gap: 12px; }
+  .locate__or::before, .locate__or::after { width: auto; height: 1px; }
   .br-wide { display: none; }
 }
 /* ---------- phones ----------
@@ -326,8 +337,11 @@ h1 {
   }
   /* fields sit right under the headline; the primary button stays at the bottom of the screen */
   .intro { margin-bottom: clamp(18px, 3.4vh, 30px); }
-  #check-form { flex: 1; min-height: 0; grid-template-rows: auto auto auto 1fr; }
-  #check-form .btn { align-self: end; }
+  /* no card on phones: the row is the grid, and the two buttons share its last line */
+  .check-row { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto 1fr; gap: 10px; }
+  #check-form { display: contents; }
+  #check-form .btn { grid-column: auto; align-self: end; }
+  .locate { align-self: end; }
   .result { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #lead-form { flex: 1; min-height: 0; grid-template-rows: auto auto 1fr; }
   #lead-form .field { grid-column: 1 / -1; }
@@ -345,11 +359,12 @@ h1 {
   .underline::after { height: 5px; }
   .subtitle { font-size: 15px; line-height: 1.6; margin: 0; max-width: 34ch; }
 
-  /* full-width second button under the primary one */
-  .locate { flex-direction: column; align-items: stretch; gap: 6px; margin-top: 8px; }
-  .locate__or { display: flex; align-items: center; gap: 12px; font-size: 13px; }
-  .locate__or::before, .locate__or::after { content: ''; flex: 1; height: 1px; background: rgba(255, 255, 255, .16); }
-  .locate__btn { min-height: 54px; border-radius: 14px; font-size: 16.5px; }
+  /* second button beside the primary one (the grid gap already separates them) */
+  .locate { flex-direction: row; margin: 12px 0 0; gap: 8px; }
+  .locate__or { flex-direction: column; gap: 4px; }
+  .locate__or::before, .locate__or::after { width: 1px; height: auto; }
+  .locate__btn { min-height: 56px; border-radius: 14px; font-size: 15px; line-height: 1.25; padding: 0 10px; gap: 8px; }
+  #check-form .btn { padding: 0 12px; }
 
   /* form: separate glass tiles instead of one card */
   .bar, .bar--lead {

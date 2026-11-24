@@ -43,40 +43,42 @@
       <p class="subtitle">הזינו כתובת ונבדוק מול תשתיות בזק ו-IBC אם הסיב כבר מחכה לכם – ואם כן,<br class="br-wide"> Call Up תחבר אתכם לאינטרנט מהיר באמת.</p>
     </section>
 
-    <form id="check-form" class="bar" autocomplete="off" novalidate>
-      <div class="field field--city combo" data-combo="city">
-        <label for="city-input">יישוב</label>
-        <input id="city-input" type="text" placeholder="התחילו להקליד שם יישוב" role="combobox" aria-expanded="false" aria-controls="city-list" aria-autocomplete="list">
-        <ul id="city-list" class="combo__list" role="listbox" hidden></ul>
+    <div class="check-row">
+      <form id="check-form" class="bar" autocomplete="off" novalidate>
+        <div class="field field--city combo" data-combo="city">
+          <label for="city-input">יישוב</label>
+          <input id="city-input" type="text" placeholder="התחילו להקליד שם יישוב" role="combobox" aria-expanded="false" aria-controls="city-list" aria-autocomplete="list">
+          <ul id="city-list" class="combo__list" role="listbox" hidden></ul>
+        </div>
+        <div class="field field--street combo" data-combo="street">
+          <label for="street-input">רחוב</label>
+          <input id="street-input" type="text" placeholder="בחרו יישוב קודם" disabled role="combobox" aria-expanded="false" aria-controls="street-list" aria-autocomplete="list">
+          <ul id="street-list" class="combo__list" role="listbox" hidden></ul>
+        </div>
+        <div class="field field--house">
+          <label for="house-input">מספר בית</label>
+          <input id="house-input" type="text" inputmode="numeric" maxlength="10">
+        </div>
+        <div class="field field--apt">
+          <label for="apt-input">דירה <small>(לא חובה)</small></label>
+          <input id="apt-input" type="text" inputmode="numeric" maxlength="10">
+        </div>
+        <button type="submit" class="btn" id="check-btn">
+          <span class="btn__label">בדקו זמינות</span>
+          <span class="spinner" aria-hidden="true"></span>
+        </button>
+      </form>
+      <!-- Beside the card, next to the submit button: check by current location instead -->
+      <div class="locate" id="locate">
+        <span class="locate__or">או</span>
+        <button type="button" class="locate__btn" id="locate-btn">
+          <svg class="locate__icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="locate-label" aria-live="polite">בדיקה לפי המיקום שלי</span>
+        </button>
       </div>
-      <div class="field field--street combo" data-combo="street">
-        <label for="street-input">רחוב</label>
-        <input id="street-input" type="text" placeholder="בחרו יישוב קודם" disabled role="combobox" aria-expanded="false" aria-controls="street-list" aria-autocomplete="list">
-        <ul id="street-list" class="combo__list" role="listbox" hidden></ul>
-      </div>
-      <div class="field field--house">
-        <label for="house-input">מספר בית</label>
-        <input id="house-input" type="text" inputmode="numeric" maxlength="10">
-      </div>
-      <div class="field field--apt">
-        <label for="apt-input">דירה <small>(לא חובה)</small></label>
-        <input id="apt-input" type="text" inputmode="numeric" maxlength="10">
-      </div>
-      <button type="submit" class="btn" id="check-btn">
-        <span class="btn__label">בדקו זמינות</span>
-        <span class="spinner" aria-hidden="true"></span>
-      </button>
-    </form>
-    <p class="form-error" id="check-error" role="alert" hidden></p>
-    <!-- Under the address form: check by current location instead -->
-    <div class="locate" id="locate">
-      <span class="locate__or">או</span>
-      <button type="button" class="locate__btn" id="locate-btn">
-        <svg class="locate__icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
-        <span class="spinner" aria-hidden="true"></span>
-        <span id="locate-label" aria-live="polite">בדיקה לפי המיקום שלי</span>
-      </button>
     </div>
+    <p class="form-error" id="check-error" role="alert" hidden></p>
     <!-- Step 2: result + lead -->
     <section class="result" id="result" hidden aria-live="polite">
       <p class="result__status"><span class="result__pill"><span class="result__dot" aria-hidden="true"></span><strong id="result-badge"></strong></span><span class="result__address" id="result-address"></span></p>
