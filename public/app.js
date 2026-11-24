@@ -85,9 +85,10 @@
 
   const FIBER_TECH = ['GPON', 'XGSPON', 'AE'];
 
-  async function checkProvider(provider, address) {
+  // target: { address } or { coordinates: { itmX, itmY } }
+  async function checkProvider(provider, target) {
     try {
-      const { ok, data } = await kma('POST', '/check', { provider, address });
+      const { ok, data } = await kma('POST', '/check', { provider, ...target });
       if (!ok || !data.result) return null;
       if (provider === 'bezeq') return !!data.gpon;
       const tech = String(data.technology || '').toUpperCase().trim();
@@ -102,13 +103,67 @@
     const address = { cityId, streetId, houseNumber };
     // IBC requires an apartment; a private house has none, so "0" stands for "no apartment".
     const [bezeq, ibc] = await Promise.all([
-      checkProvider('bezeq', address),
-      checkProvider('ibc', { ...address, apartment: apartment || '0' }),
+      checkProvider('bezeq', { address }),
+      checkProvider('ibc', { address: { ...address, apartment: apartment || '0' } }),
     ]);
+    return combineResults(bezeq, ibc);
+  }
+
+  async function checkFiberByCoordinates(coordinates) {
+    const [bezeq, ibc] = await Promise.all([
+      checkProvider('bezeq', { coordinates }),
+      checkProvider('ibc', { coordinates }),
+    ]);
+    return combineResults(bezeq, ibc);
+  }
+
+  function combineResults(bezeq, ibc) {
     dbg('check results', { bezeq, ibc });
     state.providers = { bezeq, ibc };
     if (bezeq === null && ibc === null) return null;
     return bezeq === true || ibc === true;
+  }
+
+  // ---------- location ----------
+  // WGS84 -> ITM, as in https://github.com/zvizvi/ITM-to-WGS84. The API accepts whole meters only.
+  function WGS84toITM(lat, long) {
+    const proj4 = window.proj4;
+    proj4.defs('EPSG:2039', '+proj=tmerc +lat_0=31.73439361111111 +lon_0=35.20451694444445 +k=1.0000067 +x_0=219529.584 +y_0=626907.39 +ellps=GRS80 +towgs84=-48,55,52,0,0,0,0 +units=m +no_defs');
+    proj4.defs('EPSG:4326', '+title=WGS 84 (long/lat) +proj=longlat +ellps=WGS84 +datum=WGS84 +units=degrees');
+    const [x, y] = proj4(proj4('EPSG:4326'), proj4('EPSG:2039'), [long, lat]);
+    return { itmX: Math.round(x), itmY: Math.round(y) };
+  }
+
+  const MAX_ACCURACY_METERS = 500; // a wider fix (IP-based / "approximate location") cannot identify a building
+
+  function getPosition() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('הדפדפן לא תומך באיתור מיקום. הזינו כתובת במקום.'));
+      navigator.geolocation.getCurrentPosition(resolve, (err) => {
+        dbg('geolocation error', err.code, err.message);
+        reject(new Error(err.code === 1
+          ? 'אין הרשאה למיקום. אשרו גישה למיקום בדפדפן, או הזינו כתובת.'
+          : 'לא הצלחנו לאתר את המיקום שלכם. נסו שוב או הזינו כתובת.'));
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    });
+  }
+
+  // Display only: the check itself runs on the coordinates.
+  async function addressText(provider, coordinates) {
+    try {
+      const { ok, data } = await kma('POST', '/coordinates-to-address', { provider, coordinates });
+      if (!ok || !data.result) return '';
+      const a = data.address;
+      const street = [a.streetName, `${a.houseNumber || ''}${a.letter || ''}`].map((s) => (s || '').trim()).filter(Boolean).join(' ');
+      return [street, (a.cityName || '').trim()].filter(Boolean).join(', ');
+    } catch {
+      return '';
+    }
+  }
+
+  async function coordinatesToAddress(coordinates) {
+    const [bezeq, ibc] = await Promise.all([addressText('bezeq', coordinates), addressText('ibc', coordinates)]);
+    return { bezeq, ibc };
   }
 
   // ---------- combobox (dropdown on desktop, bottom drawer on mobile) ----------
@@ -391,7 +446,59 @@
     }
   });
 
+  const locateBtn = $('locate-btn');
+  const locateLabel = $('locate-label');
+  const LOCATE_LABEL = locateLabel.textContent;
+
+  // Full-screen loading shown while the location check runs.
+  function setLocating(step) {
+    $('locating').hidden = !step;
+    if (!step) return;
+    const checking = step === 'check';
+    $('locating-title').textContent = checking ? 'בודקים זמינות סיבים…' : 'מאתרים את המיקום שלכם…';
+    $('locating-text').textContent = checking ? 'עוד רגע ויש תשובה' : 'אשרו גישה למיקום אם הדפדפן מבקש';
+  }
+
+  locateBtn.addEventListener('click', async () => {
+    dbg('locate click');
+    clearInvalid(checkForm);
+    showError('check-error', '');
+    locateBtn.disabled = checkBtn.disabled = true;
+    locateBtn.classList.add('is-loading');
+    locateLabel.textContent = 'מאתרים את המיקום…';
+    setLocating('locate');
+    try {
+      const { coords } = await getPosition();
+      dbg('position', { accuracy: coords.accuracy });
+      if (coords.accuracy > MAX_ACCURACY_METERS) throw new Error('המיקום שהתקבל אינו מדויק מספיק. הפעילו מיקום מדויק, או הזינו כתובת.');
+      if (!window.proj4) throw new Error('לא הצלחנו לבדוק לפי מיקום כרגע. רעננו את הדף או הזינו כתובת.');
+      const coordinates = WGS84toITM(coords.latitude, coords.longitude);
+      locateLabel.textContent = 'בודקים…';
+      setLocating('check');
+      const [addresses, fiber] = await Promise.all([coordinatesToAddress(coordinates), checkFiberByCoordinates(coordinates)]);
+      // Bezeq and IBC may resolve a point to neighbouring buildings: show the one the answer is about.
+      const { bezeq, ibc } = state.providers;
+      const fromIbc = (ibc === true && bezeq !== true) || (bezeq === null && ibc !== null);
+      const address = fromIbc ? addresses.ibc || addresses.bezeq : addresses.bezeq || addresses.ibc;
+      if (fiber === null) {
+        throw new Error(address
+          ? `המיקום שאותר: ${address}. לא הצלחנו לבדוק אותו כרגע. נסו שוב או הזינו כתובת.`
+          : 'לא מצאנו כתובת במיקום שלכם. הזינו כתובת לבדיקה.');
+      }
+      showResult(fiber, address || 'המיקום הנוכחי שלכם');
+    } catch (err) {
+      dbg('locate failed', err.message);
+      showError('check-error', err.message);
+    } finally {
+      locateBtn.disabled = checkBtn.disabled = false;
+      locateBtn.classList.remove('is-loading');
+      locateLabel.textContent = LOCATE_LABEL;
+      setLocating(null);
+    }
+  });
+
   function setLoading(btn, on) {
+    locateBtn.disabled = on;
     btn.disabled = on;
     btn.classList.toggle('is-loading', on);
     const label = btn.querySelector('.btn__label');
@@ -419,6 +526,7 @@
     showError('lead-error', '');
     clearInvalid(leadForm);
     checkForm.hidden = true;
+    $('locate').hidden = true;
     document.body.classList.add('has-result');
     result.hidden = false;
     setTimeout(() => $('lead-name').focus({ preventScroll: true }), 400);
@@ -476,10 +584,11 @@
     dbg('again clicked');
     result.hidden = true;
     checkForm.hidden = false;
+    $('locate').hidden = false;
     document.body.classList.remove('has-result');
     $('lead-name').value = '';
     $('lead-phone').value = '';
-    houseInput.focus({ preventScroll: true });
+    if (state.city) houseInput.focus({ preventScroll: true });
   });
 
   loadCities();
