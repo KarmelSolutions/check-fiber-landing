@@ -337,11 +337,12 @@ h1 {
   }
   /* fields sit right under the headline; the primary button stays at the bottom of the screen */
   .intro { margin-bottom: clamp(18px, 3.4vh, 30px); }
-  /* no card on phones: the row is the grid, and the two buttons share its last line */
-  .check-row { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto 1fr; gap: 10px; }
-  #check-form { display: contents; }
-  #check-form .btn { grid-column: auto; align-self: end; }
-  .locate { align-self: end; }
+  /* phones keep the stacked layout: the row wrapper dissolves, so the form fills the screen
+     and the error + location button follow it, in that order */
+  .check-row { display: contents; }
+  #check-form { flex: 1; min-height: 0; grid-template-rows: auto auto auto 1fr; }
+  #check-form .btn { align-self: end; }
+  .locate { order: 1; }
   .result { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #lead-form { flex: 1; min-height: 0; grid-template-rows: auto auto 1fr; }
   #lead-form .field { grid-column: 1 / -1; }
@@ -359,12 +360,11 @@ h1 {
   .underline::after { height: 5px; }
   .subtitle { font-size: 15px; line-height: 1.6; margin: 0; max-width: 34ch; }
 
-  /* second button beside the primary one (the grid gap already separates them) */
-  .locate { flex-direction: row; margin: 12px 0 0; gap: 8px; }
-  .locate__or { flex-direction: column; gap: 4px; }
-  .locate__or::before, .locate__or::after { width: 1px; height: auto; }
-  .locate__btn { min-height: 56px; border-radius: 14px; font-size: 15px; line-height: 1.25; padding: 0 10px; gap: 8px; }
-  #check-form .btn { padding: 0 12px; }
+  /* full-width second button under the primary one */
+  .locate { gap: 6px; margin-top: 8px; }
+  .locate__or { line-height: inherit; }
+  .locate__or::before, .locate__or::after { background: rgba(255, 255, 255, .16); }
+  .locate__btn { flex: none; min-height: 54px; padding: 0 26px; border-radius: 14px; font-size: 16.5px; }
 
   /* form: separate glass tiles instead of one card */
   .bar, .bar--lead {
@@ -378,7 +378,7 @@ h1 {
     box-shadow: 0 10px 26px rgba(4, 2, 20, .28);
     transition: box-shadow .15s;
   }
-  .field label { font-size: 12px; margin-bottom: 1px; }
+  .field label { font-size: 12px; margin-bottom: 1px; white-space: normal; }
   .field input { font-size: 16.5px; }
   .field:focus-within { box-shadow: 0 0 0 2px var(--cyan), 0 10px 26px rgba(4, 2, 20, .28); }
   .field.is-invalid { box-shadow: 0 0 0 2px #ff6b75, 0 10px 26px rgba(4, 2, 20, .28); }
