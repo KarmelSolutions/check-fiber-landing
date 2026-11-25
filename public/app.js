@@ -636,19 +636,59 @@
     setTimeout(() => $('lead-name').focus({ preventScroll: true }), 400);
   }
 
+  const leadName = $('lead-name');
+  const leadPhone = $('lead-phone');
+  // Israeli mobile number: 050-055 or 058, then 7 digits.
+  const PHONE_PATTERN = /^05[0123458]\d{7}$/;
+  const isPhoneValid = () => PHONE_PATTERN.test(leadPhone.value);
+
+  const isNameValid = () => leadName.value.trim().length >= 2;
+  const isMarked = (el) => el.closest('.field').classList.contains('is-invalid');
+
+  // Without "name", an error already shown on the name stays until the name is corrected.
+  function showLeadProblems({ name = isMarked(leadName) && !isNameValid(), phone = false }) {
+    clearInvalid(leadForm);
+    const messages = [];
+    if (name) { markInvalid(leadName); messages.push('נא להזין שם מלא.'); }
+    if (phone) { markInvalid(leadPhone); messages.push('מספר הטלפון אינו תקין.'); }
+    showError('lead-error', messages.join(' '));
+  }
+
+  // Checked when leaving the field; a shown error goes away as soon as the number is corrected.
+  leadPhone.addEventListener('blur', () => {
+    if (leadPhone.value.trim()) showLeadProblems({ phone: !isPhoneValid() });
+  });
+  // The field takes digits only.
+  leadPhone.addEventListener('input', () => {
+    const digits = leadPhone.value.replace(/\D/g, '');
+    if (digits !== leadPhone.value) {
+      const caret = leadPhone.value.slice(0, leadPhone.selectionStart).replace(/\D/g, '').length;
+      leadPhone.value = digits;
+      leadPhone.setSelectionRange(caret, caret);
+    }
+    if (isMarked(leadPhone) && isPhoneValid()) showLeadProblems({});
+  });
+
+  // Dashes and spaces in pasted or suggested numbers are dropped before maxlength applies,
+  // or they would cost digits.
+  leadPhone.addEventListener('beforeinput', (e) => {
+    if (!e.cancelable || !e.data || !/\D/.test(e.data)) return;
+    e.preventDefault();
+    const { selectionStart: start, selectionEnd: end, value, maxLength } = leadPhone;
+    const room = maxLength - (value.length - (end - start));
+    leadPhone.setRangeText(e.data.replace(/\D/g, '').slice(0, room), start, end, 'end');
+    leadPhone.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
   leadForm.addEventListener('submit', (e) => {
     e.preventDefault();
     dbg('lead submit');
-    clearInvalid(leadForm);
-    const name = $('lead-name').value.trim();
-    const phone = $('lead-phone').value.replace(/[\s-]/g, '');
-    const problems = [];
-    if (name.length < 2) { markInvalid($('lead-name')); problems.push('שם מלא'); }
-    if (!/^05\d{8}$/.test(phone)) { markInvalid($('lead-phone')); problems.push('מספר טלפון תקין'); }
-    if (problems.length) return showError('lead-error', 'נא להזין ' + problems.join(' ו') + '.');
-    showError('lead-error', '');
+    const name = leadName.value.trim();
+    const problems = { name: !isNameValid(), phone: !isPhoneValid() };
+    showLeadProblems(problems);
+    if (problems.name || problems.phone) return;
 
-    sendLead(name, phone);
+    sendLead(name, leadPhone.value);
   });
 
   // ---------- lead -> callup saveLandingLeadFiber ----------
