@@ -627,8 +627,7 @@
     $('lead-btn').textContent = fiber ? 'חזרו אליי' : 'עדכנו אותי';
     leadForm.hidden = false;
     $('thanks').hidden = true;
-    showError('lead-error', '');
-    clearInvalid(leadForm);
+    showLeadProblems({ name: false });
     checkForm.hidden = true;
     $('locate').hidden = true;
     document.body.classList.add('has-result');
@@ -647,13 +646,21 @@
 
   // Without "name", an error already shown on the name stays until the name is corrected.
   function showLeadProblems({ name = isMarked(leadName) && !isNameValid(), phone = false }) {
-    clearInvalid(leadForm);
-    const messages = [];
-    if (name) { markInvalid(leadName); messages.push('נא להזין שם מלא.'); }
-    if (phone) { markInvalid(leadPhone); messages.push('מספר הטלפון אינו תקין.'); }
-    showError('lead-error', messages.join(' '));
+    showFieldError(leadName, name ? 'נא להזין שם מלא.' : '');
+    showFieldError(leadPhone, phone ? 'מספר הטלפון אינו תקין.' : '');
+    showError('lead-error', '');
   }
 
+  // Marks the field red, with the message under its input.
+  function showFieldError(input, msg) {
+    input.closest('.field').classList.toggle('is-invalid', !!msg);
+    input.setAttribute('aria-invalid', String(!!msg));
+    showError(input.id + '-error', msg);
+  }
+
+  leadName.addEventListener('input', () => {
+    if (isMarked(leadName) && isNameValid()) showLeadProblems({ phone: isMarked(leadPhone) && !isPhoneValid() });
+  });
   // Checked when leaving the field; a shown error goes away as soon as the number is corrected.
   leadPhone.addEventListener('blur', () => {
     if (leadPhone.value.trim()) showLeadProblems({ phone: !isPhoneValid() });

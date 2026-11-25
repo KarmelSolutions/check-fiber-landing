@@ -88,11 +88,13 @@
       <form id="lead-form" class="bar bar--lead" novalidate>
         <div class="field">
           <label for="lead-name">שם מלא</label>
-          <input id="lead-name" type="text" autocomplete="name" placeholder="ישראל ישראלי" maxlength="80">
+          <input id="lead-name" type="text" autocomplete="name" placeholder="ישראל ישראלי" maxlength="80" aria-describedby="lead-name-error">
+          <p class="field__error" id="lead-name-error" role="alert" hidden></p>
         </div>
         <div class="field">
           <label for="lead-phone">טלפון נייד</label>
-          <input id="lead-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="0500000000" minlength="10" maxlength="10">
+          <input id="lead-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="0500000000" minlength="10" maxlength="10" aria-describedby="lead-phone-error">
+          <p class="field__error" id="lead-phone-error" role="alert" hidden></p>
         </div>
         <button type="submit" class="btn" id="lead-btn"></button>
       </form>
